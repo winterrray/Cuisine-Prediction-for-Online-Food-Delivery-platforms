@@ -1,0 +1,313 @@
+---
+title: "Applying ML Models"
+output:
+  html_document:
+    df_print: paged
+---
+
+___________________________________________________________________________________   ___________________________________________________________________________________   
+
+```{r}
+# Load necessary libraries
+library(randomForest)
+library(class)
+library(caret)
+library(rpart.plot)
+library(corrplot)
+library(nnet)
+library(knitr)
+
+# Read the data
+df <- read.csv("/Users/Rajnandini/Desktop/ds cp/sycsd grp 5/zomatoIndiaCleaned.csv", encoding = "latin1")
+
+# Shuffle the data
+set.seed(123) # Setting seed for reproducibility
+df <- df[sample(nrow(df)),]
+```
+
+
+```{r}
+## Subset the dataframe to include only the relevant columns
+cor_matrix <- df[, c("Average.Cost.for.two", "Has.Table.booking", "Has.Online.delivery", "Is.delivering.now", "Votes", "Rating.text")]
+
+# Convert factors to numeric
+factor_cols <- sapply(cor_matrix, is.factor)
+cor_matrix[factor_cols] <- lapply(cor_matrix[factor_cols], as.numeric)
+
+# Handle any remaining non-numeric columns
+cor_matrix <- cor_matrix[sapply(cor_matrix, is.numeric)]
+
+# Calculate correlation matrix
+cor_matrix <- cor(cor_matrix, use = "pairwise.complete.obs")
+
+# Print the correlation matrix
+print(cor_matrix)
+
+```
+___________________________________________________________________________________   
+
+```{r}
+# Plot correlation heatmap
+corrplot(cor_matrix, method = "circle")
+```
+___________________________________________________________________________________   
+
+
+```{r}
+
+# Split the data into training and test sets
+set.seed(123) # Setting seed for reproducibility
+train_index <- createDataPartition(df$Rating.text, p = 0.6, list = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+train_data$Rating.text <- as.factor(train_data$Rating.text)
+```
+
+   
+   
+___________________________________________________________________________________   
+___________________________________________________________________________________   
+   
+### Model 1: AdaBoost with Decision Trees
+
+
+```{r}
+
+set.seed(123) # Setting seed for reproducibility
+ada_model <- randomForest(Rating.text ~ ., data = train_data, ntree = 60)
+ada_pred <- predict(ada_model, test_data)
+#accuracy
+ada_accuracy <- sum(ada_pred == test_data$Rating.text) / length(test_data$Rating.text)
+cat("Accuracy of Adaboost with Decision Tree is: ", ada_accuracy)
+
+```   
+
+
+___________________________________________________________________________________   
+   
+#### AB: confusion matrix   
+
+```{r}
+# Create confusion matrix
+conf_matrix_AB <- table(ada_pred, test_data$Rating.text)
+
+# Print confusion matrix
+kable(conf_matrix_AB, caption = "AB Confusion Matrix", format = "html")
+
+```   
+
+___________________________________________________________________________________   
+
+#### AB: model performance
+
+```{r}
+# Function to calculate precision
+calculate_precision <- function(conf_matrix_AB) {
+  true_positive <- diag(conf_matrix_AB)
+  false_positive <- colSums(conf_matrix_AB) - true_positive
+  precision <- true_positive / (true_positive + false_positive)
+  return(precision)
+}
+
+# Function to calculate recall
+calculate_recall <- function(conf_matrix_AB) {
+  true_positive <- diag(conf_matrix_AB)
+  false_negative <- rowSums(conf_matrix_AB) - true_positive
+  recall <- true_positive / (true_positive + false_negative)
+  return(recall)
+}
+
+# Function to calculate F1 score
+calculate_f1_score <- function(precision, recall) {
+  f1_score <- 2 * precision * recall / (precision + recall)
+  return(f1_score)
+}
+
+# Calculate precision and recall
+precision <- calculate_precision(conf_matrix_AB)
+recall <- calculate_recall(conf_matrix_AB)
+
+# Calculate F1 score for each class
+f1_score <- calculate_f1_score(precision, recall)
+
+# Output F1 scores
+cat("F1 Score for each class:\n")
+cat("Rating Class\tF1 Score\n")
+for (i in 1:length(precision)) {
+  cat(names(precision)[i], "\t\t", f1_score[i], "\n")
+}
+
+# Average F1 score across all classes
+avg_f1_score <- mean(f1_score, na.rm = TRUE)
+cat("\nAverage F1 Score of Adaboost: ", avg_f1_score, "\n")
+
+```
+
+
+___________________________________________________________________________________   
+___________________________________________________________________________________   
+
+
+### Model 2: Random Forest Classification
+
+```{r}
+
+set.seed(123) # Setting seed for reproducibility
+rf_model <- randomForest(Rating.text ~ ., data = train_data, ntree = 200)
+rf_pred <- predict(rf_model, test_data)
+rf_accuracy <- sum(rf_pred == test_data$Rating.text) / length(test_data$Rating.text)
+
+cat("\nAccuracy of Random Forest is: ", rf_accuracy)
+
+```
+
+___________________________________________________________________________________   
+
+#### RF: confusion matrix
+
+```{r}
+#confusion matrix of random forest
+conf_matrix <- table(predicted = rf_pred, actual = test_data$Rating.text)
+kable(conf_matrix, caption = "RF Confusion Matrix", format = "html")
+```
+
+___________________________________________________________________________________   
+
+#### RF: model performance
+
+```{r}
+# Function to calculate precision
+calculate_precision <- function(conf_matrix) {
+  true_positive <- diag(conf_matrix)
+  false_positive <- colSums(conf_matrix) - true_positive
+  precision <- true_positive / (true_positive + false_positive)
+  return(precision)
+}
+
+# Function to calculate recall
+calculate_recall <- function(conf_matrix) {
+  true_positive <- diag(conf_matrix)
+  false_negative <- rowSums(conf_matrix) - true_positive
+  recall <- true_positive / (true_positive + false_negative)
+  return(recall)
+}
+
+# Function to calculate F1 score
+calculate_f1_score <- function(precision, recall) {
+  f1_score <- 2 * precision * recall / (precision + recall)
+  return(f1_score)
+}
+
+# Calculate precision and recall
+precision <- calculate_precision(conf_matrix)
+recall <- calculate_recall(conf_matrix)
+
+# Calculate F1 score for each class
+f1_score <- calculate_f1_score(precision, recall)
+
+# Output F1 scores
+cat("F1 Score for each class:\n")
+cat("Rating Class\tF1 Score\n")
+for (i in 1:length(precision)) {
+  cat(names(precision)[i], "\t\t", f1_score[i], "\n")
+}
+
+# Average F1 score across all classes
+avg_f1_score <- mean(f1_score, na.rm = TRUE)
+cat("\nAverage F1 Score of RF:", avg_f1_score, "\n")
+
+```
+
+___________________________________________________________________________________   
+___________________________________________________________________________________   
+
+
+### Model 3: KNN
+
+```{r}
+features <- df[, c("Average.Cost.for.two", "Has.Table.booking", "Has.Online.delivery", "Is.delivering.now", "Votes")]
+target <- df$Rating.text
+
+# Convert factors to numeric if needed
+factor_cols <- sapply(features, is.factor)
+features[factor_cols] <- lapply(features[factor_cols], as.numeric)
+
+# Scale the features
+scaled_features <- scale(features)
+
+# Split the data into training and test sets
+set.seed(123) # Setting seed for reproducibility
+train_index <- createDataPartition(target, p = 0.6, list = FALSE)
+train_features <- scaled_features[train_index, ]
+test_features <- scaled_features[-train_index, ]
+train_target <- target[train_index]
+test_target <- target[-train_index]
+
+# Model Training and Prediction
+k <- 10  # Specify the value of k (try different values)
+knn_model <- knn(train = train_features, test = test_features, cl = train_target, k = k)
+
+# Evaluate the performance of the model
+accuracy <- sum(knn_model == test_target) / length(test_target)
+cat("\nAccuracy of KNN model:", accuracy)
+```
+
+___________________________________________________________________________________   
+
+#### KNN: confusion matrix
+
+```{r}
+# Create confusion matrix
+conf_matrix1 <- table(predicted = knn_model, actual = test_target)
+kable(conf_matrix1, caption = "KNN Confusion Matrix", format = "html")
+```
+
+___________________________________________________________________________________   
+
+#### KNN: model performance
+
+```{r}
+# Function to calculate precision
+calculate_precision <- function(confusion_matrix, label) {
+  true_positive <- confusion_matrix[label, label]
+  false_positive <- sum(confusion_matrix[label, ]) - true_positive
+  precision <- true_positive / (true_positive + false_positive)
+  return(precision)
+}
+
+# Function to calculate recall
+calculate_recall <- function(confusion_matrix, label) {
+  true_positive <- confusion_matrix[label, label]
+  false_negative <- sum(confusion_matrix[, label]) - true_positive
+  recall <- true_positive / (true_positive + false_negative)
+  return(recall)
+}
+
+# Function to calculate F1 score
+calculate_f1_score <- function(confusion_matrix, label) {
+  precision <- calculate_precision(confusion_matrix, label)
+  recall <- calculate_recall(confusion_matrix, label)
+  f1_score <- 2 * precision * recall / (precision + recall)
+  return(f1_score)
+}
+
+# Create confusion matrix
+conf_matrix <- table(predicted = knn_model, actual = test_target)
+
+# Calculate F1 score for each class
+classes <- rownames(conf_matrix)
+f1_scores <- sapply(classes, function(class) calculate_f1_score(conf_matrix, class))
+
+# Output F1 scores
+cat("F1 Scores:\n")
+for (i in 1:length(classes)) {
+  cat(classes[i], ": ", f1_scores[i], "\n")
+}
+
+avg_f1_score <- mean(f1_scores, na.rm = TRUE)
+cat("\nAverage F1 Score of KNN:", avg_f1_score, "\n")
+
+```
+
+
+

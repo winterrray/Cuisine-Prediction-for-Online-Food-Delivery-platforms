@@ -1,0 +1,146 @@
+---
+title: "PreProccesing and Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+____________________________________________________________________________________   
+
+```{r}
+
+zomato <- read.csv("C:/Users/Rajnandini/Desktop/ds cp/sycsd grp 5/zomato.csv", encoding = "latin1")
+
+# Visualize the percentage of data from different countries
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+countries <- unique(zomato$Country.Code)
+countries
+```
+
+```{r}
+country_counts <- sapply(countries, function(c) sum(zomato$Country.Code == c))
+country_counts
+```
+
+```{r}
+country_data <- data.frame(Country = countries, Count = country_counts)
+country_data
+```
+
+```{r}
+ggplot(country_data, aes(x = "", y = Count, fill = Country)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  theme(legend.position = "top")
+```
+
+```{r}
+
+# Filter data for India with country code 1
+zomato_india <- zomato[zomato$Country.Code == 1, ]
+zomato_india
+```
+
+```{r}
+
+# Clean up data
+zomato_india$Has.Table.booking <- ifelse(zomato_india$Has.Table.booking == "Yes", 1, 0)
+zomato_india$Has.Online.delivery <- ifelse(zomato_india$Has.Online.delivery == "Yes", 1, 0)
+zomato_india$Is.delivering.now <- ifelse(zomato_india$Is.delivering.now == "Yes", 1, 0)
+zomato_india$Rating.text <- as.factor(zomato_india$Rating.text)
+zomato_india <- zomato_india[zomato_india$Rating.text != "Not rated", ]
+
+# Calculate mean for Average Cost for two
+average_cost_mean <- mean(zomato_india$Average.Cost.for.two[zomato_india$Average.Cost.for.two != 0])
+zomato_india$Average.Cost.for.two[zomato_india$Average.Cost.for.two == 0] <- average_cost_mean
+```
+
+```{r}
+# Visualize cities in India
+city_counts <- zomato_india %>% group_by(City) %>% summarize(Count = n())
+ggplot(city_counts, aes(x = "", y = Count, fill = City)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+# Visualize rating vs number of votes
+ggplot(zomato_india, aes(x = Aggregate.rating, y = Votes)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Rating", y = "Number of Votes") +
+  ggtitle("Rating vs Number of Votes")
+```
+
+```{r}
+# Visualize rating vs average cost for two
+ggplot(zomato_india, aes(x = Aggregate.rating, y = Average.Cost.for.two)) +
+  geom_bar(stat = "identity", fill = "green") +
+  labs(x = "Rating", y = "Average Cost for Two (in Indian Rupees)") +
+  ggtitle("Rating vs Avg. Cost for Two")
+```
+
+```{r}
+ggplot(zomato_india, aes(x = Aggregate.rating, y = Average.Cost.for.two/200)) +
+  geom_bar(stat = "identity", fill = "green") +
+  scale_y_continuous(labels = comma) +  # Format y-axis labels with commas
+  labs(x = "Rating", y = "Average Cost for Two (in Indian Rupees)") +
+  ggtitle("Rating vs Avg. Cost for Two")
+
+```
+
+```{r}
+zomato_india$Cuisine.code <- gsub(",.*", "", zomato_india$Cuisines)
+zomato_india
+```
+
+```{r}
+labels <- c("Afghani", "American", "Andhra", "Arabian", "Asian", "Assamese", "Awadhi", "Bakery", "Bengali", "Beverages",
+            "Bihari", "Biryani", "British", "Burger", "Burmese", "Cafe", "Charcoal Grill", "Chinese", "Continental", 
+            "Desserts", "Drinks Only", "European", "Fast Food", "Finger Food", "French", "Goan", "Greek", "Gujarati", 
+            "Healthy Food", "Hyderabadi", "Ice Cream", "Indian", "Italian", "Japanese", "Juices", "Kashmiri", "Kerala", 
+            "Korean", "Lebanese", "Lucknowi", "Maharashtrian", "Malaysian", "Malwani", "Mediterranean", "Mexican", 
+            "Middle Eastern", "Mithai", "Modern Indian", "Mughlai", "Naga", "Nepalese", "North Eastern", "North Indian", 
+            "Oriya", "Parsi", "Persian", "Pizza", "Portuguese", "Rajasthani", "Raw Meats", "Salad", "Seafood", 
+            "South American", "South Indian", "Spanish", "Steak", "Street Food", "Sushi", "Tea", "Tex-Mex", "Thai", 
+            "Tibetan", "Turkish", "Vietnamese")
+
+values <- seq_along(labels) - 1  # Assign values 0 to n-1
+
+# Remove duplicate column names if any
+zomato_india <- zomato_india[, !duplicated(names(zomato_india))]
+
+# Modify the "Cuisine" column based on labels and values, with a default value of -1 for unmatched values
+zomato_india <- zomato_india %>%
+  mutate(Cuisine.code = recode(Cuisine.code, !!!setNames(values, labels), .default = -1))
+
+zomato_india
+```
+
+```{r}
+
+# Drop unwanted columns and reorder
+# Drop unwanted columns and reorder
+zomato_india_cleaned <- zomato_india[, !names(zomato_india) %in% c("Cuisines", "Country.Code", "Rating.color", "Switch.to.order.menu", "Currency", "Address", "Locality", "Locality.Verbose")]
+zomato_india_cleaned
+```
+
+```{r}
+# Select columns for zomato_india_cleaned
+# Extract City column from the original dataset
+city_column <- zomato_india$City
+```
+
+```{r}
+# Reorder the columns to place the "City" column in the desired position
+zomato_india_cleaned <- zomato_india_cleaned[, c("Restaurant.Name", "City", "Average.Cost.for.two", "Has.Table.booking", "Has.Online.delivery", "Is.delivering.now", "Votes", "Aggregate.rating", "Rating.text", "Cuisine.code")]
+
+# Write the cleaned dataset to a new CSV file
+write.csv(zomato_india_cleaned, file = "/Users/Rajnandini/Desktop/ds cp/sycsd grp 5/zomatoIndiaCleaned.csv", row.names = FALSE)
+zomato_india_cleaned
+```
+
